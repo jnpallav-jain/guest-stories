@@ -1,0 +1,15 @@
+# Secrets - holds OPENWEATHERMAP_API_KEY and HF_TOKEN
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Tooling / IDE
+.idea/
+.vscode/
+.DS_Store
