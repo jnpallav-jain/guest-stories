@@ -23,7 +23,7 @@ docs = [
 ]
 
 def preprocess(text: str) -> list[str]:
-    """Tokenize for BM25: lowercase, and split on anything that is not alphanumeric.
+    """Tokenize for BM25: lowercase, and split on anything that is not alphanumeric .
 
     BM25Retriever's default preprocess_func is plain `text.split()`, which is
     case-sensitive and keeps punctuation attached. That makes "nikola tesla" score
@@ -45,7 +45,7 @@ class GuestInfoRetrieverTool(Tool):
     output_type = "string"
 
     def __init__(self, docs):
-        self.is_initialized = False
+        super().__init__()
         self.retriever = BM25Retriever.from_documents(docs, preprocess_func=preprocess)
 
     def forward(self, query: str):
