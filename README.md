@@ -12,24 +12,30 @@ actually broke along the way, which turned out to be the more interesting half.
 Real output, not a mock-up:
 
 ```
-You: Tell me about our guest Dr. Nikola Tesla.
+You: Tell me about our guest Nikola Tesla.
 
-🎩 Concierge: Our guest, Dr. Nikola Tesla, is an old friend from university days. He
-has recently patented a new wireless energy transmission system and would be
-delighted to discuss it with you. Just remember he's passionate about pigeons, so
-that might make for good small talk. Born in 1856 in what is now Croatia, Tesla
-was a pioneering inventor, electrical engineer, mechanical engineer, and
-physicist...
+🎩 Concierge: Born between July 9 and 10, 1856, in Smiljan, then part of the
+Austrian Empire, the brilliant Serbian-American inventor and electrical engineer
+[...] One of Tesla's most significant contributions was his promotion and
+development of alternating current (AC) [...]
+
+**Themes and Quotes**:
+- **Work**: "I do not think there is any thrill that can go through the human
+  heart like that felt by the inventor as he sees some creation of the brain
+  unfolding to success..."
+- **Future**: "Let the future tell the truth, and evaluate each one according to
+  his work and accomplishments. The present is theirs; the future, for which I
+  have really worked, is mine."
 ```
 
-That answer combines the private guest record with web search — six steps,
-23,675 cumulative input tokens.
+The quotes come from the guest index, the biography from web search, and the
+agent merged them itself. Six steps, 27,928 cumulative input tokens.
 
 ## Tools
 
 | Tool | What it does |
 |---|---|
-| `guest_info_retriever` | BM25 over the invitee list |
+| `guest_info_retriever` | BM25 over 3,955 guests built from [`m-ric/english_historical_quotes`](https://huggingface.co/datasets/m-ric/english_historical_quotes) |
 | `weather_info` | Current conditions from OpenWeatherMap |
 | `hub_stats` | Most-downloaded model for an author on the Hugging Face Hub |
 | `web_search` | DuckDuckGo, via `ddgs` |
@@ -94,33 +100,45 @@ so base tools win on a name collision. `DuckDuckGoSearchTool.name` is
 deprecated tool with no error at all. Base tools are added by hand here instead.
 
 **BM25 was case-sensitive.** `BM25Retriever`'s default `preprocess_func` is
-plain `text.split()` — no lowercasing, no punctuation stripping. Measured
-against the guest corpus:
+plain `text.split()` — no lowercasing, no punctuation stripping. Measured over
+the 3,955-guest corpus:
 
 | Query | Default tokenizer | Fixed tokenizer |
 |---|---|---|
-| `Dr. Nikola Tesla` | 2.00 | 2.25 |
-| `nikola tesla` | **0.00** | **1.58** |
-| `Barack Obama` (absent) | 0.00 | 0.00 |
+| `Nikola Tesla` | 11.42 | 11.45 |
+| `nikola tesla` | **0.00** | **11.45** |
+| `Marie Curie.` | 8.07 | **12.18** |
+| `asdfgh` (absent) | 0.00 | 0.00 |
 
-A lowercase query scored zero against Tesla's own record. This was invisible
-because the corpus holds 3 guests and the tool returned `results[:3]` — the
-entire dataset, every time, so the right guest was always in the output no
-matter what BM25 thought. The retriever wasn't retrieving; the LLM was doing the
-filtering. Worth stating plainly: **the code was passing for the wrong reason.**
-
-The fix is a shared tokenizer for indexing and querying:
+A lowercase query scored zero against Tesla's own record, and a trailing full
+stop cost Marie Curie a third of her score. The fix is one tokenizer shared by
+indexing and querying — a mismatch between the two breaks matching far more
+thoroughly than the original bug:
 
 ```python
 def preprocess(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
 ```
 
-A score threshold would be the natural next step — absent guests score exactly
-0.00, so the separation is clean — but it is deliberately *not* implemented.
-Adding one before fixing the tokenizer would have converted a query that works
-today into "no matching guest found". At three documents, retrieval here is
-mostly theatre anyway; the corpus would fit in the system prompt.
+This bug first showed up against a 3-document corpus, where it was invisible:
+the tool returned `results[:3]`, so the whole dataset came back every time and
+the right guest was always in the output no matter what BM25 thought. The
+retriever wasn't retrieving — the LLM was doing the filtering, and the code was
+passing for the wrong reason. Scaling the corpus to 3,955 guests is what made
+retrieval quality start to matter.
+
+**Ranking without a threshold invents guests.** BM25 always scores the entire
+corpus, so taking the top 3 unconditionally means an absent guest still returns
+three confident-looking strangers. `forward()` scores explicitly and keeps only
+positive hits. Gibberish now scores 0.00 across the corpus and gets an honest
+"no guest on the list matches".
+
+The limitation worth naming: a query for someone genuinely absent but
+*name-shaped* still returns a partial match. "Ada Lovelace" — not in this
+dataset — retrieves Ada Louise Huxtable, because the surname misses but the
+given name hits. Lexical matching has no concept of "that's a different
+person"; that is the case dense embeddings or a name-aware filter would need
+to handle.
 
 ## Token cost
 
