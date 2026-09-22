@@ -1,19 +1,20 @@
 # Guest Stories
 
-Alfred, a conversational agent for a gala, built on [smolagents](https://github.com/huggingface/smolagents).
-He looks up who is on the guest list, checks whether the weather will ruin the
-fireworks, and searches the web for anything else a host needs to know.
+Concierge, a conversational agent for a gala, built on
+[smolagents](https://github.com/huggingface/smolagents). It looks up who is on
+the guest list, checks whether the weather will ruin the fireworks, and searches
+the web for anything else a host needs to know.
 
-This is the Hugging Face Agents course, Unit 3. The exercises are the course's;
-the notes below are what actually broke along the way, which turned out to be
-the more interesting half.
+I built this to get hands-on with agent tooling — writing tools, wiring
+retrieval, and keeping conversation memory bounded. The notes below are what
+actually broke along the way, which turned out to be the more interesting half.
 
 Real output, not a mock-up:
 
 ```
 You: Tell me about our guest Dr. Nikola Tesla.
 
-🎩 Alfred: Our guest, Dr. Nikola Tesla, is an old friend from university days. He
+🎩 Concierge: Our guest, Dr. Nikola Tesla, is an old friend from university days. He
 has recently patented a new wireless energy transmission system and would be
 delighted to discuss it with you. Just remember he's passionate about pigeons, so
 that might make for good small talk. Born in 1856 in what is now Croatia, Tesla
@@ -28,7 +29,7 @@ That answer combines the private guest record with web search — six steps,
 
 | Tool | What it does |
 |---|---|
-| `guest_info_retriever` | BM25 over the invitee list ([`agents-course/unit3-invitees`](https://huggingface.co/datasets/agents-course/unit3-invitees)) |
+| `guest_info_retriever` | BM25 over the invitee list |
 | `weather_info` | Current conditions from OpenWeatherMap |
 | `hub_stats` | Most-downloaded model for an author on the Hugging Face Hub |
 | `web_search` | DuckDuckGo, via `ddgs` |
@@ -56,7 +57,7 @@ in its error message rather than leaving you to guess.
 memory by default:
 
 ```python
-response = alfred.run(query, reset=False)
+response = concierge.run(query, reset=False)
 ```
 
 Memory in smolagents is `agent.memory.steps`, a list of `TaskStep` /
@@ -72,9 +73,9 @@ model observations with nothing to attach them to.
 
 ## Notes from the build
 
-Version drift is the theme. The course pins `smolagents==1.18.0` and nothing
-else, so everything around it resolved to versions released after the material
-was written.
+Version drift is the theme. `smolagents` is pinned to 1.18.0 and nothing else
+is, so every surrounding library resolved to a release newer than the API it
+expects.
 
 **`list_models(direction=-1)` no longer exists.** `huggingface_hub` 1.x dropped
 the parameter. `sort="downloads"` alone already returns descending order —
@@ -144,7 +145,7 @@ Search counts vary run to run because the results do. Two caps follow from
 this: `max_results=5`, and `VisitWebpageTool(max_output_length=8000)`.
 
 Note that `trim_memory()` only runs *between* turns. Within a single
-`alfred.run()`, memory grows unchecked — `max_steps` is the ceiling there.
+`concierge.run()`, memory grows unchecked — `max_steps` is the ceiling there.
 
 ## Answer quality is a separate problem from tool correctness
 
@@ -159,7 +160,7 @@ read-only property. It is rebuilt from `prompt_templates` on every run, so the
 supported fix is to append there:
 
 ```python
-alfred.prompt_templates["system_prompt"] += "\n\nWhen you call final_answer, ..."
+concierge.prompt_templates["system_prompt"] += "\n\nWhen you call final_answer, ..."
 ```
 
 That is a nudge to a small hosted model, not a guarantee, and it demonstrably
